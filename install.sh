@@ -1,49 +1,61 @@
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status.
 set -e
 
 echo "-> Starting Discord auto-updater setup..."
 
-# Check for deb-get and install if not found
+# Step 1: Forcefully install deb-get from its official .deb release
+echo "--> Ensuring deb-get is installed..."
+DEB_URL="https://github.com/wimpysworld/deb-get/releases/download/0.4.5/deb-get_0.4.5-1_all.deb"
+DEB_FILE="/tmp/deb-get.deb"
+curl -L "$DEB_URL" -o "$DEB_FILE"
+sudo apt-get install -y "$DEB_FILE"
+rm "$DEB_FILE" # Clean up
+
+# Step 2: Verify installation and get the correct path
+echo "--> Verifying deb-get path..."
 if ! command -v deb-get &> /dev/null; then
-    echo "--> deb-get not found. Installing..."
-    curl -sL https://raw.githubusercontent.com/wimpysworld/deb-get/main/deb-get | sudo -E bash -s install deb-get
-else
-    echo "--> deb-get is already installed."
+    echo "[!] FATAL: deb-get installation failed. Aborting."
+    exit 1
 fi
+DEB_GET_PATH=$(which deb-get)
+echo "--> Found deb-get at: $DEB_GET_PATH"
 
-# Create sudoers rule for passwordless execution
-# Note: Using a file in /etc/sudoers.d/ is the modern, safe way to add rules.
+# Step 3: Create sudoers rule with the correct path
 SUDOERS_FILE="/etc/sudoers.d/discord-updater-nopasswd"
-SUDO_COMMAND="/usr/bin/deb-get install discord"
-echo "--> Creating sudoers rule for the current user at $SUDOERS_FILE..."
-
-# Use whoami to be robust, as $USER may not be set in all contexts.
+echo "--> Creating sudoers rule for the current user..."
 CURRENT_USER=$(whoami)
-echo "$CURRENT_USER ALL=(ALL) NOPASSWD: $SUDO_COMMAND" | sudo tee "$SUDOERS_FILE" > /dev/null
-
-# Set correct permissions for the sudoers file
+echo "$CURRENT_USER ALL=(ALL) NOPASSWD: $DEB_GET_PATH install discord" | sudo tee "$SUDOERS_FILE" > /dev/null
 sudo chmod 0440 "$SUDOERS_FILE"
 echo "--> Sudoers rule created."
 
-# Copy systemd unit files
+# Step 4: Copy and patch systemd unit files
 SYSTEMD_DIR="$HOME/.config/systemd/user"
-echo "--> Creating systemd user directory at $SYSTEMD_DIR..."
+SERVICE_FILE="$SYSTEMD_DIR/discord-updater.service"
+echo "--> Creating systemd user directory..."
 mkdir -p "$SYSTEMD_DIR"
 
-echo "--> Copying unit files..."
-# Assuming the script is run from the repo root
-cp systemd/discord-updater.service "$SYSTEMD_DIR/"
+echo "--> Copying and patching unit files..."
+cp systemd/discord-updater.service "$SERVICE_FILE"
 cp systemd/discord-updater.timer "$SYSTEMD_DIR/"
-echo "--> Unit files copied."
 
-# Reload systemd and enable the timer
+# Use sed to replace the placeholder with the actual path
+sed -i "s|__DEB_GET_PATH__|${DEB_GET_PATH}|g" "$SERVICE_FILE"
+echo "--> Unit files configured."
+
+# Step 5: Reload systemd and enable the timer
 echo "--> Reloading systemd daemon and enabling timer..."
 systemctl --user daemon-reload
 systemctl --user enable --now discord-updater.timer
 echo "--> Timer enabled."
 
+# Step 6: Add a small delay and perform the initial run
+echo "--> Waiting 2 seconds for system to process new permissions..."
+sleep 2
+echo "--> Triggering initial run to install/update Discord..."
+systemctl --user start discord-updater.service
+echo "--> Initial run command sent."
+
 echo ""
 echo "-> Installation complete."
-echo "-> To check timer status, run: systemctl --user list-timers"
+echo "-> To check the result, run: journalctl --user -u discord-updater.service -n 20"
