@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Discord updater daily and shortly after boot
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

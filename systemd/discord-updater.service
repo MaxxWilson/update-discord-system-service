@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for and install Discord updates using deb-get
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/sudo /usr/bin/deb-get install discord
+
+[Install]
+WantedBy=default.target
