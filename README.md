@@ -34,3 +34,11 @@ To verify that the timer is active and scheduled, run:
 ```
 systemctl --user list-timers
 ```
+
+## Uninstallation
+
+To remove the auto-updater, simply run the uninstall.sh script from the repository root (once created).
+
+```
+./uninstall.sh
+```
