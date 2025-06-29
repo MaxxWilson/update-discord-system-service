@@ -16,9 +16,10 @@ This repository provides a systemd timer and service to automate this process us
 
 ## Installation
 
-First, make the install script executable:
+First, make scripts executable:
 ```
 chmod +x install.sh
+chmod +x uninstall.sh
 ```
 
 Then, run the installer:
